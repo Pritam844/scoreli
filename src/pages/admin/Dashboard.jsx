@@ -89,7 +89,10 @@ export default function Dashboard() {
       {/* Quick Actions */}
       <h2 className="heading-sm mb-md">Quick Actions</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-sm)', marginBottom: 'var(--space-lg)' }}>
-        <button className="btn btn-primary btn-block" onClick={() => navigate('/admin/matches/new')} id="create-match-btn">
+        <button className="btn btn-primary btn-block" onClick={() => navigate('/admin/tournaments')} id="manage-tournaments-btn" style={{ gridColumn: 'span 2' }}>
+          🏆 Tournaments
+        </button>
+        <button className="btn btn-secondary btn-block" onClick={() => navigate('/admin/matches/new')} id="create-match-btn">
           🏏 New Match
         </button>
         <button className="btn btn-secondary btn-block" onClick={() => navigate('/admin/teams')} id="manage-teams-btn">
