@@ -26,9 +26,15 @@ export default function TournamentDashboard() {
   }, [id, user]);
 
   async function fetchTournamentData() {
+    if (!user || !id) return;
     try {
+      setLoading(true);
       const snap = await getDoc(doc(db, 'tournaments', id));
-      if (!snap.exists()) return navigate('/admin/tournaments');
+      if (!snap.exists()) {
+        toast.error('Tournament not found');
+        return navigate('/admin/tournaments');
+      }
+      
       const data = { id: snap.id, ...snap.data() };
       
       // Access Check
@@ -39,21 +45,27 @@ export default function TournamentDashboard() {
 
       setTournament(data);
 
-      // Fetch teams
-      const teamSnap = await getDocs(query(collection(db, 'tournament_teams'), where('tournamentId', '==', id)));
-      const teamData = teamSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setTeams(teamData);
+      // Fetch teams and matches simultaneously
+      const [teamSnap, matchSnap] = await Promise.all([
+        getDocs(query(collection(db, 'tournament_teams'), where('tournamentId', '==', id))),
+        getDocs(query(collection(db, 'matches'), where('tournamentId', '==', id)))
+      ]);
 
-      // Fetch matches
-      const matchSnap = await getDocs(query(collection(db, 'matches'), where('tournamentId', '==', id)));
+      const teamData = teamSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       const matchData = matchSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      
+      setTeams(teamData);
       setMatches(matchData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
 
       // Calculate points table
       calculatePointsTable(teamData, matchData);
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to fetch data');
+      console.error('Error fetching tournament data:', err);
+      if (err.message && err.message.includes('index')) {
+        toast.error('Firestore Index required. Check browser console.');
+      } else {
+        toast.error('Failed to fetch data');
+      }
     } finally {
       setLoading(false);
     }

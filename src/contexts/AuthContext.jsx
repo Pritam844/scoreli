@@ -33,12 +33,14 @@ export function AuthProvider({ children }) {
           }
         } catch {
           setUserRole('admin');
+        } finally {
+          setLoading(false);
         }
       } else {
         setUser(null);
         setUserRole(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
     return unsub;
   }, []);

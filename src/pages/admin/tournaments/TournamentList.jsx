@@ -27,17 +27,30 @@ export default function TournamentList() {
   }, [user]);
 
   async function fetchTournaments() {
+    if (!user) return;
     try {
-      let q = collection(db, 'tournaments');
-      if (!isMainAdmin) {
-        q = query(q, where('adminId', '==', user.uid));
+      let q;
+      if (isMainAdmin) {
+        q = query(collection(db, 'tournaments'), orderBy('createdAt', 'desc'));
+      } else {
+        // This query requires a composite index: tournaments (adminId ASC, createdAt DESC)
+        q = query(
+          collection(db, 'tournaments'),
+          where('adminId', '==', user.uid),
+          orderBy('createdAt', 'desc')
+        );
       }
-      const snap = await getDocs(query(q, orderBy('createdAt', 'desc')));
+      
+      const snap = await getDocs(q);
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setTournaments(data);
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to fetch tournaments');
+      console.error('Error fetching tournaments:', err);
+      if (err.message?.includes('index')) {
+        toast.error('Firestore Index required. Check browser console for the link.');
+      } else {
+        toast.error('Failed to fetch tournaments');
+      }
     } finally {
       setLoading(false);
     }
