@@ -169,6 +169,7 @@ export default function TournamentDashboard() {
           const matchRef = doc(collection(db, 'matches'));
           batch.set(matchRef, {
             tournamentId: id,
+            tournamentName: tournament.name,
             teamA: { id: teams[i].id, name: teams[i].name, score: 0, wickets: 0, overs: 0 },
             teamB: { id: teams[j].id, name: teams[j].name, score: 0, wickets: 0, overs: 0 },
             status: 'upcoming',
@@ -187,6 +188,18 @@ export default function TournamentDashboard() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function updateMatchDate(matchId, dateStr) {
+    if (!dateStr) return;
+    try {
+      const matchDate = new Date(dateStr).getTime();
+      await updateDoc(doc(db, 'matches', matchId), { matchDate });
+      toast.success('Schedule updated');
+      fetchTournamentData();
+    } catch (err) {
+      toast.error('Failed to update date');
     }
   }
 
@@ -254,10 +267,19 @@ export default function TournamentDashboard() {
 
       {activeTab === 'matches' && (
         <div className="flex flex-col gap-md">
-          <div className="flex justify-between items-center">
-            <h3 className="heading-sm">Fixtures</h3>
+          <div className="flex flex-col gap-sm mb-lg">
+            <div className="flex justify-between items-center">
+              <h3 className="heading-sm">Fixtures</h3>
+              {matches.length === 0 && (
+                <button className="btn btn-primary" onClick={generateMatches}>⚡ Generate Matches</button>
+              )}
+            </div>
             {matches.length === 0 && (
-              <button className="btn btn-primary" onClick={generateMatches}>⚡ Generate Matches</button>
+              <div className="card">
+                <div className="card-body">
+                  <p className="text-tiny opacity-60">Matches will be created without dates. You can set them manually below.</p>
+                </div>
+              </div>
             )}
           </div>
           
@@ -270,7 +292,17 @@ export default function TournamentDashboard() {
             >
               <div className="card-body py-md">
                 <div className="flex justify-between items-center mb-sm">
-                  <StatusBadge status={m.status} />
+                  <div className="flex gap-xs items-center">
+                    <StatusBadge status={m.status} />
+                    <input 
+                      type="datetime-local" 
+                      className="form-input" 
+                      style={{ padding: '2px 8px', fontSize: '10px', height: 'auto', width: 'auto', border: 'none', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}
+                      value={m.matchDate ? new Date(m.matchDate - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => updateMatchDate(m.id, e.target.value)}
+                    />
+                  </div>
                   <span className="text-tiny" style={{ opacity: 0.5 }}>#{m.id.slice(-4).toUpperCase()}</span>
                 </div>
                 <div className="match-card-teams flex items-center justify-between" style={{ gap: 'var(--space-md)' }}>

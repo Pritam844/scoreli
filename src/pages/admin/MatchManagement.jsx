@@ -16,12 +16,16 @@ export default function MatchManagement() {
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const now = new Date();
+  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
   const [form, setForm] = useState({
     teamA_id: '',
     teamB_id: '',
     status: 'upcoming',
     overs: 20,
-    batterMode: 2 // 1 or 2
+    batterMode: 2, // 1 or 2
+    matchDate: localNow
   });
 
   useEffect(() => { 
@@ -48,10 +52,10 @@ export default function MatchManagement() {
           teamB_id: fetchedTeams[1]?.id || '',
           status: 'upcoming',
           overs: 20,
-          batterMode: 2
+          batterMode: 2,
+          matchDate: localNow
         });
         setShowModal(true);
-        // Replace URL so it doesn't keep opening on refresh
         window.history.replaceState(null, '', '/admin/matches');
       }
     } catch (err) {
@@ -67,7 +71,8 @@ export default function MatchManagement() {
       teamB_id: teams[1]?.id || '',
       status: 'upcoming',
       overs: 20,
-      batterMode: 2
+      batterMode: 2,
+      matchDate: localNow
     });
     setShowModal(true);
   }
@@ -91,7 +96,7 @@ export default function MatchManagement() {
         overs: parseInt(form.overs) || 20,
         batterMode: parseInt(form.batterMode) || 2,
         admin_id: user.uid,
-        matchDate: serverTimestamp(),
+        matchDate: new Date(form.matchDate).getTime(),
         createdAt: serverTimestamp()
       });
       toast.success('Match created!');
@@ -195,11 +200,22 @@ export default function MatchManagement() {
           {matches.map(m => (
             <div key={m.id} className="card">
               <div className="card-body">
-                <div className="flex justify-between items-center mb-sm">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <div className="flex gap-xs items-center">
                     <StatusBadge status={m.status} />
                     {m.overs && <span className="badge" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)', fontSize: '10px', padding: '1px 6px' }}>{m.overs} ov</span>}
                     {m.batterMode === 1 && <span className="badge" style={{ background: 'rgba(139,92,246,0.15)', color: 'var(--accent-purple)', fontSize: '10px', padding: '1px 6px' }}>1 Bat</span>}
+                  </div>
+                  <div className="text-tiny opacity-60">
+                    {new Date((m.matchDate || m.createdAt)?.seconds ? (m.matchDate || m.createdAt).seconds * 1000 : (m.matchDate || m.createdAt)).toLocaleDateString('en-IN', {
+                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center mb-sm">
+                  <div style={{ fontWeight: 600, fontSize: 'var(--text-base)' }}>
+                    {m.teamA?.name || 'TBA'} vs {m.teamB?.name || 'TBA'}
                   </div>
                   <div className="flex gap-xs items-center">
                     {m.published ? (
@@ -208,10 +224,6 @@ export default function MatchManagement() {
                       <span className="badge badge-draft">Draft</span>
                     )}
                   </div>
-                </div>
-
-                <div style={{ fontWeight: 600, fontSize: 'var(--text-base)', marginBottom: 4 }}>
-                  {m.teamA?.name || 'TBA'} vs {m.teamB?.name || 'TBA'}
                 </div>
                 <div className="text-small mb-sm">
                   {m.teamA?.score ?? 0}/{m.teamA?.wickets ?? 0} ({m.teamA?.overs ?? 0}) •{' '}
@@ -345,6 +357,17 @@ export default function MatchManagement() {
                   <div style={{ fontSize: 'var(--text-xs)', marginTop: 2 }}>2 Batters</div>
                 </button>
               </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Match Date & Time</label>
+              <input
+                type="datetime-local"
+                className="form-input"
+                value={form.matchDate}
+                onChange={e => setForm(f => ({ ...f, matchDate: e.target.value }))}
+                required
+              />
             </div>
 
             <div className="form-group">

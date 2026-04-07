@@ -21,6 +21,11 @@ export default function Home() {
         teamDetails[d.id] = d.data(); 
       });
 
+      // Fetch all tournaments for mapping names
+      const tournamentSnap = await getDocs(collection(db, 'tournaments'));
+      const tournamentNames = {};
+      tournamentSnap.docs.forEach(d => { tournamentNames[d.id] = d.data().name; });
+
       // Fetch matches
       const q = query(
         collection(db, 'matches'),
@@ -30,35 +35,54 @@ export default function Home() {
       const snap = await getDocs(q);
       const all = snap.docs.map(d => {
         const data = d.data();
-        // Enrich with fresh names and logos
+        if (data.tournamentId) data.tournamentName = tournamentNames[data.tournamentId] || null;
+
         if (data.teamA && teamDetails[data.teamA.id]) {
           const oldName = data.teamA.name;
           const newName = teamDetails[data.teamA.id].name;
-          if (oldName !== newName && data.result) {
-            data.result = data.result.replaceAll(oldName, newName);
-          }
+          if (oldName !== newName && data.result) data.result = data.result.replaceAll(oldName, newName);
           data.teamA.name = newName;
           data.teamA.logo_url = teamDetails[data.teamA.id].logo_url || null;
         }
         if (data.teamB && teamDetails[data.teamB.id]) {
           const oldName = data.teamB.name;
           const newName = teamDetails[data.teamB.id].name;
-          if (oldName !== newName && data.result) {
-            data.result = data.result.replaceAll(oldName, newName);
-          }
+          if (oldName !== newName && data.result) data.result = data.result.replaceAll(oldName, newName);
           data.teamB.name = newName;
           data.teamB.logo_url = teamDetails[data.teamB.id].logo_url || null;
         }
         return { id: d.id, ...data };
       });
-      setMatches(all.filter(m => m.published));
+
+      // Priority sort: live (0), finished (1), upcoming (2)
+      const statusPriority = { live: 0, finished: 1, upcoming: 2 };
+      const sorted = all.filter(m => m.published).sort((a, b) => {
+        const pA = statusPriority[a.status] ?? 3;
+        const pB = statusPriority[b.status] ?? 3;
+        if (pA !== pB) return pA - pB;
+        return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+      });
+
+      setMatches(sorted);
     } catch (err) {
       console.error('Error fetching matches:', err);
-      // Fallback: try without ordering
       try {
         const fallbackSnap = await getDocs(collection(db, 'matches'));
-        const all = fallbackSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setMatches(all.filter(m => m.published).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+        const tournamentSnap = await getDocs(collection(db, 'tournaments'));
+        const tn = {}; tournamentSnap.docs.forEach(d => { tn[d.id] = d.data().name; });
+        
+        const statusPriority = { live: 0, finished: 1, upcoming: 2 };
+        const all = fallbackSnap.docs.map(d => {
+          const data = d.data();
+          if (data.tournamentId) data.tournamentName = tn[data.tournamentId] || null;
+          return { id: d.id, ...data };
+        }).filter(m => m.published).sort((a, b) => {
+          const pA = statusPriority[a.status] ?? 3;
+          const pB = statusPriority[b.status] ?? 3;
+          if (pA !== pB) return pA - pB;
+          return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+        });
+        setMatches(all);
       } catch (e2) {
         console.error('Fallback also failed:', e2);
       }

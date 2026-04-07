@@ -26,10 +26,17 @@ export default function MatchCard({ match }) {
   return (
     <div className="match-card" id={`match-${match.id}`} onClick={() => navigate(`/match/${match.id}`)}>
       <div className="match-card-header">
-        <StatusBadge status={status} />
-        {matchDate && (
+        <div className="flex items-center gap-xs">
+          <StatusBadge status={status} />
+          {match.tournamentName && (
+            <span className="badge" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.1)' }}>
+              🏆 {match.tournamentName}
+            </span>
+          )}
+        </div>
+        {(matchDate || match.createdAt) && (
           <span className="text-tiny">
-            {new Date(matchDate?.seconds ? matchDate.seconds * 1000 : matchDate).toLocaleDateString('en-IN', {
+            {new Date((matchDate || match.createdAt)?.seconds ? (matchDate || match.createdAt).seconds * 1000 : (matchDate || match.createdAt)).toLocaleDateString('en-IN', {
               day: 'numeric', month: 'short', year: 'numeric'
             })}
           </span>

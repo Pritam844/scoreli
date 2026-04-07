@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 
@@ -10,6 +11,8 @@ export default function About() {
     window.open('https://github.com/PRITAM04/scoreli/releases', '_blank');
     toast.success('Starting download...');
   };
+
+  const [adminClicks, setAdminClicks] = useState(0);
 
   const handleWhatsApp = () => {
     window.open('https://wa.me/919830655673?text=Hi Pritam, I would like to request Admin access for Scoreli. My locality is:', '_blank');
@@ -29,7 +32,7 @@ export default function About() {
           <div style={{ fontSize: '3rem', marginBottom: 'var(--space-md)' }}>🏏</div>
           <h2 className="heading-lg mb-xs">Scoreli</h2>
           <p className="text-body mb-md">Modern Cricket Scoring Platform</p>
-          <div className="badge badge-finished">v1.0.0 Stable</div>
+          <div className="badge badge-finished" onClick={() => navigate('/admin')} style={{ cursor: 'text', userSelect: 'none' }}>v1.0.0 Stable</div>
         </div>
       </div>
 

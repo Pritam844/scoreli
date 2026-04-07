@@ -55,9 +55,12 @@ export default function Dashboard() {
   return (
     <div className="page-content">
       <div className="flex justify-between items-center mb-lg" style={{ paddingTop: 'var(--space-sm)' }}>
-        <div>
-          <h1 className="heading-md">Dashboard</h1>
-          <p className="text-small">{user?.email}</p>
+        <div className="flex items-center gap-sm">
+          <button className="page-back-btn" onClick={() => navigate('/')} title="Back to Site">←</button>
+          <div>
+            <h1 className="heading-md">Dashboard</h1>
+            <p className="text-small">{user?.email}</p>
+          </div>
         </div>
         <button className="btn btn-outline btn-sm" onClick={handleLogout} id="logout-btn">
           Logout

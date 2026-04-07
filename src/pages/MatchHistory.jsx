@@ -16,12 +16,32 @@ export default function MatchHistory() {
 
   async function fetchMatches() {
     try {
-      const snap = await getDocs(collection(db, 'matches'));
-      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setMatches(
-        all.filter(m => m.published)
-          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
-      );
+      const [matchSnap, tournamentSnap] = await Promise.all([
+        getDocs(collection(db, 'matches')),
+        getDocs(collection(db, 'tournaments'))
+      ]);
+      
+      const tournamentNames = {};
+      tournamentSnap.docs.forEach(d => { tournamentNames[d.id] = d.data().name; });
+
+      const all = matchSnap.docs.map(d => {
+        const data = d.data();
+        if (data.tournamentId) {
+          data.tournamentName = tournamentNames[data.tournamentId] || null;
+        }
+        return { id: d.id, ...data };
+      });
+
+      // Priority sort: live (0), finished (1), upcoming (2)
+      const statusPriority = { live: 0, finished: 1, upcoming: 2 };
+      const sorted = all.filter(m => m.published).sort((a, b) => {
+        const pA = statusPriority[a.status] ?? 3;
+        const pB = statusPriority[b.status] ?? 3;
+        if (pA !== pB) return pA - pB;
+        return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+      });
+
+      setMatches(sorted);
     } catch (err) {
       console.error('Error fetching matches:', err);
     } finally {
