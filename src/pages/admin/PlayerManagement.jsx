@@ -22,7 +22,7 @@ export default function PlayerManagement() {
   const [viewPlayer, setViewPlayer] = useState(null);
   const [form, setForm] = useState({ 
     name: '', role: 'Batsman', team_id: '',
-    age: '', height: '', batting_style: 'Right-hand bat', bowling_style: 'Right-arm Medium', career_runs: '', career_wickets: '', bio: ''
+    age: '', height: '', batting_style: 'Right-hand bat', bowling_style: 'Right-arm Medium', highest_run: '', highest_run_balls: '', career_wickets: '', bio: ''
   });
   const [photoUrlInput, setPhotoUrlInput] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -48,7 +48,7 @@ export default function PlayerManagement() {
     setEditPlayer(null);
     setForm({ 
       name: '', role: 'Batsman', team_id: 'all',
-      age: '', height: '', batting_style: 'Right-hand bat', bowling_style: 'Right-arm Medium', career_runs: '', career_wickets: '', bio: ''
+      age: '', height: '', batting_style: 'Right-hand bat', bowling_style: 'Right-arm Medium', highest_run: '', highest_run_balls: '', career_wickets: '', bio: ''
     });
     setPhotoUrlInput('');
     setShowModal(true);
@@ -61,7 +61,7 @@ export default function PlayerManagement() {
       age: p.age || '', height: p.height || '', 
       batting_style: p.batting_style || 'Right-hand bat', 
       bowling_style: p.bowling_style || 'Right-arm Medium', 
-      career_runs: p.career_runs || '', career_wickets: p.career_wickets || '', bio: p.bio || ''
+      highest_run: p.highest_run || '', highest_run_balls: p.highest_run_balls || '', career_wickets: p.career_wickets || '', bio: p.bio || ''
     });
     setPhotoUrlInput(p.photo_url || '');
     setShowModal(true);
@@ -83,7 +83,8 @@ export default function PlayerManagement() {
         height: form.height.trim(),
         batting_style: form.batting_style,
         bowling_style: form.bowling_style,
-        career_runs: form.career_runs === '' ? 0 : parseInt(form.career_runs),
+        highest_run: form.highest_run === '' ? 0 : parseInt(form.highest_run),
+        highest_run_balls: form.highest_run_balls === '' ? 0 : parseInt(form.highest_run_balls),
         career_wickets: form.career_wickets === '' ? 0 : parseInt(form.career_wickets),
         bio: form.bio.trim()
       };
@@ -269,8 +270,12 @@ export default function PlayerManagement() {
                 </select>
               </div>
                <div className="form-group">
-                <label className="form-label">Career Runs</label>
-                <input type="number" className="form-input" value={form.career_runs} onChange={e => setForm(f => ({...f, career_runs: e.target.value}))} placeholder="0" />
+                <label className="form-label">Highest Runs</label>
+                <input type="number" className="form-input" value={form.highest_run} onChange={e => setForm(f => ({...f, highest_run: e.target.value}))} placeholder="Runs" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">On Balls</label>
+                <input type="number" className="form-input" value={form.highest_run_balls} onChange={e => setForm(f => ({...f, highest_run_balls: e.target.value}))} placeholder="Balls" />
               </div>
               <div className="form-group">
                 <label className="form-label">Career Wickets</label>

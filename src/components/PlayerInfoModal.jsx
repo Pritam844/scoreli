@@ -88,8 +88,13 @@ export default function PlayerInfoModal({ player: initialPlayer, onClose }) {
            <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{player.bowling_style || '-'}</div>
         </div>
         <div className="card" style={{ padding: 'var(--space-sm)', textAlign: 'center', background: 'var(--bg-surface)', border: 'none' }}>
-           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Career Runs</div>
-           <div style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--accent-blue)' }}>{player.career_runs || 0}</div>
+           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Highest Score</div>
+           <div style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--accent-blue)' }}>
+              {player.highest_run || 0} 
+              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, opacity: 0.7, marginLeft: 4 }}>
+                ({player.highest_run_balls || 0}b)
+              </span>
+           </div>
         </div>
         <div className="card" style={{ padding: 'var(--space-sm)', textAlign: 'center', background: 'var(--bg-surface)', border: 'none' }}>
            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Career Wickets</div>
