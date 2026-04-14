@@ -96,7 +96,11 @@ export default function Players() {
                     {getInitials(p.name)}
                   </div>
                 )}
-                <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', marginBottom: 4 }}>{p.name}</div>
+                <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', marginBottom: 4 }}>
+                  {p.name}
+                  {p.is_captain && <span style={{ color: 'var(--accent-red)', marginLeft: '4px' }}>(C)</span>}
+                  {p.is_wicketkeeper && <span style={{ color: 'var(--accent-blue)', marginLeft: '4px' }}>(WK)</span>}
+                </div>
                 {p.role && (
                   <span className="badge badge-role" style={{ color: roleColors[p.role] || 'var(--text-secondary)' }}>
                     {p.role}

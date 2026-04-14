@@ -15,7 +15,10 @@ export default function BallTimeline({ balls = [] }) {
   const getLabel = (ball) => {
     if (ball.isWicket) return 'W';
     if (ball.isWide) return 'WD';
-    if (ball.isNoBall) return 'NB';
+    if (ball.isNoBall) {
+      const batRuns = ball.batsmanRuns || 0;
+      return batRuns > 0 ? `NB${batRuns}` : 'NB';
+    }
     if (ball.isBye) return `B${ball.runs}`;
     if (ball.isLegBye) return `LB${ball.runs}`;
     return ball.runs;

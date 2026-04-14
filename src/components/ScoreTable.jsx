@@ -43,6 +43,8 @@ export default function ScoreTable({ type, data = [] }) {
                     )}
                     <div>
                       {b.name}
+                      {b.is_captain && <span style={{ color: 'var(--accent-red)', marginLeft: '4px' }}>(C)</span>}
+                      {b.is_wicketkeeper && <span style={{ color: 'var(--accent-blue)', marginLeft: '4px' }}>(WK)</span>}
                       {b.howOut && <div className="text-tiny" style={{ marginTop: 2 }}>{b.howOut}</div>}
                       {b.notOut && <div className="text-tiny" style={{ color: 'var(--accent-green)', marginTop: 2 }}>not out</div>}
                     </div>
@@ -90,7 +92,11 @@ export default function ScoreTable({ type, data = [] }) {
                       {getInitials(b.name)}
                     </div>
                   )}
-                  <span>{b.name}</span>
+                  <span>
+                    {b.name}
+                    {b.is_captain && <span style={{ color: 'var(--accent-red)', marginLeft: '4px' }}>(C)</span>}
+                    {b.is_wicketkeeper && <span style={{ color: 'var(--accent-blue)', marginLeft: '4px' }}>(WK)</span>}
+                  </span>
                 </div>
               </td>
               <td>{b.overs}</td>

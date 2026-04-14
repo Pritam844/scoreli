@@ -52,6 +52,10 @@ export default function LiveScoring() {
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [playerSearchText, setPlayerSearchText] = useState('');
   const [byeRuns, setByeRuns] = useState(1);
+  const [showNoBallModal, setShowNoBallModal] = useState(false);
+  const [noBallRuns, setNoBallRuns] = useState(0);
+  const [tempIsCaptain, setTempIsCaptain] = useState(false);
+  const [tempIsWK, setTempIsWK] = useState(false);
   const [wicketBatsman, setWicketBatsman] = useState(0); // 0 = striker, 1 = non-striker
   const [isChangingPlayer, setIsChangingPlayer] = useState(false);
   const [changingPlayerType, setChangingPlayerType] = useState('striker'); // striker, nonStriker, bowler
@@ -362,26 +366,54 @@ export default function LiveScoring() {
     });
   }
 
-  function addNoBall() {
+  function addNoBall(runs = 0) {
     if (!canScore()) return;
+    const newBatting = [...batting];
     const newBowling = [...bowling];
+    const newBalls = [...balls];
+
+    // Bowler gets 1 run for no ball + any runs hit by batsman
     newBowling[currentBowlerIdx] = { ...newBowling[currentBowlerIdx] };
-    newBowling[currentBowlerIdx].runs += 1;
+    newBowling[currentBowlerIdx].runs += (1 + runs);
 
+    // Extras record 1 no ball
     const newExtras = { ...extras, noBalls: extras.noBalls + 1 };
-    const newBalls = [...balls, { runs: 1, isNoBall: true }];
-    const newTotalRuns = totalRuns + 1;
+    
+    // Total runs = 1 (NB) + runs hit
+    const newTotalRuns = totalRuns + 1 + runs;
 
+    // Update batsman stats if runs were hit
+    let newStriker = striker;
+    let newNonStriker = nonStriker;
+
+    newBatting[striker] = { ...newBatting[striker] };
+    newBatting[striker].runs += runs;
+    newBatting[striker].balls += 1;
+    if (runs === 4) newBatting[striker].fours += 1;
+    if (runs === 6) newBatting[striker].sixes += 1;
+
+    // Swap strike if odd runs hit
+    if (batterMode === 2 && runs % 2 === 1) {
+      [newStriker, newNonStriker] = [newNonStriker, newStriker];
+    }
+
+    // Ball record shows 1+runs
+    newBalls.push({ runs: 1 + runs, isNoBall: true, batsmanRuns: runs });
+
+    setBatting(newBatting);
     setBowling(newBowling);
     setExtras(newExtras);
     setBalls(newBalls);
     setTotalRuns(newTotalRuns);
+    setStriker(newStriker);
+    setNonStriker(newNonStriker);
 
     saveInningsState({
-      bowling: newBowling, extras: newExtras, balls: newBalls,
+      batting: newBatting, bowling: newBowling, extras: newExtras, balls: newBalls,
       totalRuns: newTotalRuns, totalBalls, totalWickets,
-      batting, striker, nonStriker, currentBowlerIdx
+      striker: newStriker, nonStriker: newNonStriker, currentBowlerIdx
     });
+    setShowNoBallModal(false);
   }
 
   function addBye(runs) {
@@ -572,7 +604,7 @@ export default function LiveScoring() {
     const player = [...teamPlayers, ...bowlingTeamPlayers].find(p => p.id === selectedPlayerId) || {};
     const name = player.name || playerSearchText;
     const photo = player.photo_url || null;
-    const newBat = { ...player, name, photo_url: photo, runs: 0, balls: 0, fours: 0, sixes: 0, notOut: true, howOut: '' };
+    const newBat = { ...player, name, photo_url: photo, runs: 0, balls: 0, fours: 0, sixes: 0, notOut: true, howOut: '', is_captain: tempIsCaptain, is_wicketkeeper: tempIsWK };
     const newBatting = [...batting, newBat];
     const newIdx = newBatting.length - 1;
     
@@ -604,6 +636,8 @@ export default function LiveScoring() {
     setShowNewBatsman(false);
     setSelectedPlayerId('');
     setPlayerSearchText('');
+    setTempIsCaptain(false);
+    setTempIsWK(false);
 
     saveInningsState({
       batting: newBatting, bowling, balls,
@@ -624,7 +658,7 @@ export default function LiveScoring() {
       
       const newBowling = [...bowling];
       if (existingIdx < 0) {
-        newBowling.push({ ...player, name, photo_url: photo, overs: 0, runs: 0, wickets: 0, ballsInOver: 0 });
+        newBowling.push({ ...player, name, photo_url: photo, overs: 0, runs: 0, wickets: 0, ballsInOver: 0, is_captain: tempIsCaptain, is_wicketkeeper: tempIsWK });
       }
       
       setBowling(newBowling);
@@ -647,7 +681,7 @@ export default function LiveScoring() {
       return;
     }
 
-    const newBowler = { ...player, name, photo_url: photo, overs: 0, runs: 0, wickets: 0, ballsInOver: 0 };
+    const newBowler = { ...player, name, photo_url: photo, overs: 0, runs: 0, wickets: 0, ballsInOver: 0, is_captain: tempIsCaptain, is_wicketkeeper: tempIsWK };
     const newBowling = [...bowling, newBowler];
     const newIdx = newBowling.length - 1;
     setBowling(newBowling);
@@ -655,6 +689,8 @@ export default function LiveScoring() {
     setShowNewBowler(false);
     setSelectedPlayerId('');
     setPlayerSearchText('');
+    setTempIsCaptain(false);
+    setTempIsWK(false);
 
     saveInningsState({
       bowling: newBowling, currentBowlerIdx: newIdx,
@@ -716,9 +752,21 @@ export default function LiveScoring() {
       if (newBowling[currentBowlerIdx]) newBowling[currentBowlerIdx].runs -= lastBall.runs || 1;
     } 
     else if (lastBall.isNoBall) {
-      newTotalRuns -= lastBall.runs || 1;
+      const batRuns = lastBall.batsmanRuns || 0;
+      newTotalRuns -= (1 + batRuns);
       newExtras.noBalls -= 1;
-      if (newBowling[currentBowlerIdx]) newBowling[currentBowlerIdx].runs -= lastBall.runs || 1;
+      if (newBowling[currentBowlerIdx]) newBowling[currentBowlerIdx].runs -= (1 + batRuns);
+      
+      if (newBatting[striker]) {
+        newBatting[striker] = {
+          ...newBatting[striker],
+          runs: newBatting[striker].runs - batRuns,
+          balls: newBatting[striker].balls - 1,
+          fours: batRuns === 4 ? (newBatting[striker].fours || 0) - 1 : (newBatting[striker].fours || 0),
+          sixes: batRuns === 6 ? (newBatting[striker].sixes || 0) - 1 : (newBatting[striker].sixes || 0)
+        };
+      }
+      if (batterMode === 2 && batRuns % 2 === 1) [newStriker, newNonStriker] = [newNonStriker, newStriker];
     } 
     else if (lastBall.isBye || lastBall.isLegBye) {
       newTotalRuns -= lastBall.runs;
@@ -903,7 +951,11 @@ export default function LiveScoring() {
                 onClick={() => { setIsChangingPlayer(true); setChangingPlayerType('striker'); setShowNewBatsman(true); }}
                 style={{ cursor: 'pointer' }}
               >
-                <div className="batsman-name">{batting[striker].name} *</div>
+                <div className="batsman-name">
+                  {batting[striker].name} *
+                  {batting[striker].is_captain && <span className="text-tiny" style={{ color: 'var(--accent-red)', marginLeft: 2 }}>(C)</span>}
+                  {batting[striker].is_wicketkeeper && <span className="text-tiny" style={{ color: 'var(--accent-blue)', marginLeft: 2 }}>(WK)</span>}
+                </div>
                 <div className="batsman-score">{batting[striker].runs}</div>
                 <div className="batsman-balls">({batting[striker].balls})</div>
               </div>
@@ -924,7 +976,11 @@ export default function LiveScoring() {
                   onClick={() => { setIsChangingPlayer(true); setChangingPlayerType('nonStriker'); setShowNewBatsman(true); }}
                   style={{ cursor: 'pointer' }}
                 >
-                  <div className="batsman-name">{batting[nonStriker].name}</div>
+                  <div className="batsman-name">
+                    {batting[nonStriker].name}
+                    {batting[nonStriker].is_captain && <span className="text-tiny" style={{ color: 'var(--accent-red)', marginLeft: 2 }}>(C)</span>}
+                    {batting[nonStriker].is_wicketkeeper && <span className="text-tiny" style={{ color: 'var(--accent-blue)', marginLeft: 2 }}>(WK)</span>}
+                  </div>
                   <div className="batsman-score">{batting[nonStriker].runs}</div>
                   <div className="batsman-balls">({batting[nonStriker].balls})</div>
                 </div>
@@ -949,7 +1005,11 @@ export default function LiveScoring() {
               <div className="bowler-info">
                 <span className="bowler-icon">🎯</span>
                 <div className="bowler-details">
-                  <div className="bowler-name">{bowling[currentBowlerIdx].name}</div>
+                  <div className="bowler-name">
+                    {bowling[currentBowlerIdx].name}
+                    {bowling[currentBowlerIdx].is_captain && <span className="text-tiny" style={{ color: 'var(--accent-red)', marginLeft: 2 }}>(C)</span>}
+                    {bowling[currentBowlerIdx].is_wicketkeeper && <span className="text-tiny" style={{ color: 'var(--accent-blue)', marginLeft: 2 }}>(WK)</span>}
+                  </div>
                   <div className="bowler-stats">{bowling[currentBowlerIdx].overs}.{bowling[currentBowlerIdx].ballsInOver || 0}-{bowling[currentBowlerIdx].wickets}-{bowling[currentBowlerIdx].runs}</div>
                 </div>
               </div>
@@ -991,7 +1051,7 @@ export default function LiveScoring() {
             <span className="btn-label-small">WIDE</span>
             <span className="btn-sub">WD</span>
           </button>
-          <button className="action-btn action-btn-noball" onClick={addNoBall} id="noball-btn">
+          <button className="action-btn action-btn-noball" onClick={() => { setNoBallRuns(0); setShowNoBallModal(true); }} id="noball-btn">
             <span className="btn-label-small">NO BALL</span>
             <span className="btn-sub">NB</span>
           </button>
@@ -1149,6 +1209,26 @@ export default function LiveScoring() {
               ) : null;
             })()}
           </div>
+
+          <div className="form-group" style={{ display: 'flex', gap: 'var(--space-md)', marginBottom: 'var(--space-md)' }}>
+            <label className="flex items-center gap-xs cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={tempIsCaptain} 
+                onChange={e => setTempIsCaptain(e.target.checked)} 
+              />
+              <span className="text-sm">Captain (C)</span>
+            </label>
+            <label className="flex items-center gap-xs cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={tempIsWK} 
+                onChange={e => setTempIsWK(e.target.checked)} 
+              />
+              <span className="text-sm">Wicketkeeper (WK)</span>
+            </label>
+          </div>
+
           <button className="btn btn-primary btn-block" onClick={addNewBatsman} id="add-batsman-btn" disabled={!playerSearchText}>
             Add Batsman
           </button>
@@ -1196,9 +1276,55 @@ export default function LiveScoring() {
               ) : null;
             })()}
           </div>
+
+          <div className="form-group" style={{ display: 'flex', gap: 'var(--space-md)', marginBottom: 'var(--space-md)' }}>
+            <label className="flex items-center gap-xs cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={tempIsCaptain} 
+                onChange={e => setTempIsCaptain(e.target.checked)} 
+              />
+              <span className="text-sm">Captain (C)</span>
+            </label>
+            <label className="flex items-center gap-xs cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={tempIsWK} 
+                onChange={e => setTempIsWK(e.target.checked)} 
+              />
+              <span className="text-sm">Wicketkeeper (WK)</span>
+            </label>
+          </div>
+
           <button className="btn btn-primary btn-block" onClick={addNewBowler} id="select-bowler-btn" disabled={!playerSearchText}>
             Start Over
           </button>
+        </Modal>
+      )}
+
+      {/* No Ball Modal */}
+      {showNoBallModal && (
+        <Modal title="No Ball + Runs" onClose={() => setShowNoBallModal(false)}>
+          <div className="form-group">
+            <label className="form-label">Runs from Bat</label>
+            <div className="flex gap-xs">
+              {[0, 1, 2, 3, 4, 6].map(r => (
+                <button
+                  key={r}
+                  className={`btn btn-sm ${noBallRuns === r ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setNoBallRuns(r)}
+                  style={{ flex: 1 }}
+                >
+                  {r === 0 ? "0" : r}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-md">
+            <button className="btn btn-primary btn-block" onClick={() => addNoBall(noBallRuns)}>
+              Confirm No Ball {noBallRuns > 0 ? `+ ${noBallRuns} Runs` : ''}
+            </button>
+          </div>
         </Modal>
       )}
 

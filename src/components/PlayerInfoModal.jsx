@@ -66,7 +66,11 @@ export default function PlayerInfoModal({ player: initialPlayer, onClose }) {
             {getInitials(player.name)}
           </div>
         )}
-        <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>{player.name}</h2>
+        <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>
+          {player.name}
+          {player.is_captain && <span style={{ color: 'var(--accent-red)', marginLeft: '8px' }}>(C)</span>}
+          {player.is_wicketkeeper && <span style={{ color: 'var(--accent-blue)', marginLeft: '8px' }}>(WK)</span>}
+        </h2>
         <div className="badge badge-role">{player.role || 'Batsman'}</div>
       </div>
 
