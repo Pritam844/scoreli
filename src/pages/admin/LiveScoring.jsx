@@ -1020,7 +1020,7 @@ export default function LiveScoring() {
 
         {/* Ball Timeline */}
         {balls.length > 0 && (
-          <BallTimeline balls={balls.slice(-18)} />
+          <BallTimeline balls={balls} />
         )}
 
         {/* Run Buttons */}

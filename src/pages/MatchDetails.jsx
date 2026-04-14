@@ -175,7 +175,7 @@ export default function MatchDetails() {
       {/* Ball Timeline */}
       {currentInnings?.balls?.length > 0 && (
         <div style={{ marginBottom: 'var(--space-md)' }}>
-          <BallTimeline balls={currentInnings.balls.slice(-24)} />
+          <BallTimeline balls={currentInnings.balls} />
         </div>
       )}
 
