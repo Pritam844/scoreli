@@ -80,10 +80,14 @@ export default function LiveScoring() {
       const tAPlayers = allP.filter(p => p.team_id === matchData.teamA?.id || p.team_id === 'all');
       const tBPlayers = allP.filter(p => p.team_id === matchData.teamB?.id || p.team_id === 'all');
 
-      setTeamPlayers(tAPlayers);
-      setBowlingTeamPlayers(tBPlayers);
+      // Determine who bats first
+      const firstBattingPlayers = matchData.battingFirst === 'teamB' ? tBPlayers : tAPlayers;
+      const firstBowlingPlayers = matchData.battingFirst === 'teamB' ? tAPlayers : tBPlayers;
 
-      await loadInnings(matchData, tAPlayers, tBPlayers);
+      setTeamPlayers(firstBattingPlayers);
+      setBowlingTeamPlayers(firstBowlingPlayers);
+
+      await loadInnings(matchData, firstBattingPlayers, firstBowlingPlayers);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load match');
@@ -304,7 +308,7 @@ export default function LiveScoring() {
         [newStriker, newNonStriker] = [newNonStriker, newStriker];
       }
 
-      newBalls.push({ runs, isWicket: false });
+      newBalls.push({ runs, isWicket: false, bowlerIdx: currentBowlerIdx, strikerIdx: striker, nonStrikerIdx: nonStriker });
       setBalls(newBalls);
       setBatting(newBatting);
       setBowling(newBowling);
@@ -327,7 +331,7 @@ export default function LiveScoring() {
       return;
     }
 
-    newBalls.push({ runs, isWicket: false });
+    newBalls.push({ runs, isWicket: false, bowlerIdx: currentBowlerIdx, strikerIdx: striker, nonStrikerIdx: nonStriker });
 
     setBalls(newBalls);
     setBatting(newBatting);
@@ -351,7 +355,7 @@ export default function LiveScoring() {
     newBowling[currentBowlerIdx].runs += 1;
 
     const newExtras = { ...extras, wides: extras.wides + 1 };
-    const newBalls = [...balls, { runs: 1, isWide: true }];
+    const newBalls = [...balls, { runs: 1, isWide: true, bowlerIdx: currentBowlerIdx, strikerIdx: striker, nonStrikerIdx: nonStriker }];
     const newTotalRuns = totalRuns + 1;
 
     setBowling(newBowling);
@@ -398,7 +402,7 @@ export default function LiveScoring() {
     }
 
     // Ball record shows 1+runs
-    newBalls.push({ runs: 1 + runs, isNoBall: true, batsmanRuns: runs });
+    newBalls.push({ runs: 1 + runs, isNoBall: true, batsmanRuns: runs, bowlerIdx: currentBowlerIdx, strikerIdx: striker, nonStrikerIdx: nonStriker });
 
     setBatting(newBatting);
     setBowling(newBowling);
@@ -423,7 +427,7 @@ export default function LiveScoring() {
     newBowling[currentBowlerIdx].ballsInOver = (newBowling[currentBowlerIdx].ballsInOver || 0) + 1;
 
     const newExtras = { ...extras, byes: extras.byes + runs };
-    const newBalls = [...balls, { runs, isBye: true }];
+    const newBalls = [...balls, { runs, isBye: true, bowlerIdx: currentBowlerIdx, strikerIdx: striker, nonStrikerIdx: nonStriker }];
     const newTotalBalls = totalBalls + 1;
     const newTotalRuns = totalRuns + runs;
 
@@ -470,7 +474,7 @@ export default function LiveScoring() {
     newBowling[currentBowlerIdx].ballsInOver = (newBowling[currentBowlerIdx].ballsInOver || 0) + 1;
 
     const newExtras = { ...extras, legByes: (extras.legByes || 0) + runs };
-    const newBalls = [...balls, { runs, isLegBye: true }];
+    const newBalls = [...balls, { runs, isLegBye: true, bowlerIdx: currentBowlerIdx, strikerIdx: striker, nonStrikerIdx: nonStriker }];
     const newTotalBalls = totalBalls + 1;
     const newTotalRuns = totalRuns + runs;
 
@@ -556,12 +560,19 @@ export default function LiveScoring() {
     const newTotalBalls = totalBalls + 1;
     const newTotalWickets = totalWickets + 1;
 
+    let nextStriker = striker;
+    let nextNonStriker = nonStriker;
+
     if (newBowling[currentBowlerIdx].ballsInOver >= 6) {
       newBowling[currentBowlerIdx].overs = Math.floor(newBowling[currentBowlerIdx].overs) + 1;
       newBowling[currentBowlerIdx].ballsInOver = 0;
+      // Swap strike on over end
+      if (batterMode === 2) {
+        [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
+      }
     }
 
-    newBalls.push({ runs: 0, isWicket: true });
+    newBalls.push({ runs: 0, isWicket: true, bowlerIdx: currentBowlerIdx, strikerIdx: striker, nonStrikerIdx: nonStriker });
 
     setBatting(newBatting);
     setBowling(newBowling);
@@ -569,16 +580,14 @@ export default function LiveScoring() {
     setTotalBalls(newTotalBalls);
     setTotalWickets(newTotalWickets);
     
-    // CRITICAL: Set the slot to -1 so the next addNewBatsman call can fill it
-    let nextStriker = striker;
-    let nextNonStriker = nonStriker;
+    // Set the slot of the out batsman to -1
     if (wicketBatsman === 0) {
       nextStriker = -1;
-      setStriker(-1);
     } else {
       nextNonStriker = -1;
-      setNonStriker(-1);
     }
+    setStriker(nextStriker);
+    setNonStriker(nextNonStriker);
 
     setShowWicketModal(false);
 
@@ -721,94 +730,110 @@ export default function LiveScoring() {
     let newNonStriker = nonStriker;
     const newExtras = { ...extras };
 
-    // 1. Handle Wicket Restoration
+    // 1. Determine the target indices for restoration
+    // Use stored indices if available, otherwise fallback to heuristics
+    if (lastBall.strikerIdx !== undefined) {
+      newStriker = lastBall.strikerIdx;
+      newNonStriker = lastBall.nonStrikerIdx;
+    } else {
+      // HEURISTIC FALLBACK (for legacy match data)
+      const countsAsBall = !lastBall.isWide && !lastBall.isNoBall;
+      const strikeRuns = lastBall.isNoBall ? (lastBall.batsmanRuns || 0) : (lastBall.isWide ? 0 : (lastBall.runs || 0));
+
+      // Reverse Over-End Swap
+      if ((countsAsBall || lastBall.isBye || lastBall.isLegBye) && totalBalls % 6 === 0 && totalBalls > 0) {
+        if (batterMode === 2) [newStriker, newNonStriker] = [newNonStriker, newStriker];
+      }
+      // Reverse Run Swap
+      if (batterMode === 2 && strikeRuns % 2 === 1) {
+        [newStriker, newNonStriker] = [newNonStriker, newStriker];
+      }
+    }
+
+    const targetBowlerIdx = lastBall.bowlerIdx !== undefined ? lastBall.bowlerIdx : currentBowlerIdx;
+
+    // 2. Handle Restoration Logic based on ball type
     if (lastBall.isWicket) {
       newTotalWickets -= 1;
       newTotalBalls -= 1;
-      // Find the last batsman who was out
       const outIdx = newBatting.findLastIndex(b => !b.notOut);
       if (outIdx >= 0) {
         newBatting[outIdx] = { ...newBatting[outIdx], notOut: true, howOut: '', balls: (newBatting[outIdx].balls || 0) - 1 };
-        // Restore them to the empty slot (striker or non-striker)
-        if (striker === -1) newStriker = outIdx;
-        else if (nonStriker === -1) newNonStriker = outIdx;
+        // Restoration slot is already handled by newStriker/newNonStriker from history
       }
       
-      if (newBowling[currentBowlerIdx]) {
-        newBowling[currentBowlerIdx] = { ...newBowling[currentBowlerIdx], wickets: (newBowling[currentBowlerIdx].wickets || 0) - 1 };
-        if (newBowling[currentBowlerIdx].ballsInOver === 0 && newBowling[currentBowlerIdx].overs > 0) {
-           newBowling[currentBowlerIdx].overs -= 1;
-           newBowling[currentBowlerIdx].ballsInOver = 5;
-           if (batterMode === 2) [newStriker, newNonStriker] = [newNonStriker, newStriker];
+      if (newBowling[targetBowlerIdx]) {
+        newBowling[targetBowlerIdx] = { ...newBowling[targetBowlerIdx], wickets: (newBowling[targetBowlerIdx].wickets || 0) - 1 };
+        if (newBowling[targetBowlerIdx].ballsInOver === 0 && newBowling[targetBowlerIdx].overs > 0) {
+           newBowling[targetBowlerIdx].overs -= 1;
+           newBowling[targetBowlerIdx].ballsInOver = 5;
         } else {
-           newBowling[currentBowlerIdx].ballsInOver -= 1;
+           newBowling[targetBowlerIdx].ballsInOver -= 1;
         }
       }
     } 
-    // 2. Handle Extra Runs Restoration
     else if (lastBall.isWide) {
       newTotalRuns -= lastBall.runs || 1;
       newExtras.wides -= 1;
-      if (newBowling[currentBowlerIdx]) newBowling[currentBowlerIdx].runs -= lastBall.runs || 1;
+      if (newBowling[targetBowlerIdx]) newBowling[targetBowlerIdx].runs -= lastBall.runs || 1;
     } 
     else if (lastBall.isNoBall) {
       const batRuns = lastBall.batsmanRuns || 0;
       newTotalRuns -= (1 + batRuns);
       newExtras.noBalls -= 1;
-      if (newBowling[currentBowlerIdx]) newBowling[currentBowlerIdx].runs -= (1 + batRuns);
+      if (newBowling[targetBowlerIdx]) newBowling[targetBowlerIdx].runs -= (1 + batRuns);
       
-      if (newBatting[striker]) {
-        newBatting[striker] = {
-          ...newBatting[striker],
-          runs: newBatting[striker].runs - batRuns,
-          balls: newBatting[striker].balls - 1,
-          fours: batRuns === 4 ? (newBatting[striker].fours || 0) - 1 : (newBatting[striker].fours || 0),
-          sixes: batRuns === 6 ? (newBatting[striker].sixes || 0) - 1 : (newBatting[striker].sixes || 0)
+      if (newBatting[newStriker]) {
+        newBatting[newStriker] = {
+          ...newBatting[newStriker],
+          runs: (newBatting[newStriker].runs || 0) - batRuns,
+          balls: (newBatting[newStriker].balls || 0) - 1,
+          fours: batRuns === 4 ? (newBatting[newStriker].fours || 0) - 1 : (newBatting[newStriker].fours || 0),
+          sixes: batRuns === 6 ? (newBatting[newStriker].sixes || 0) - 1 : (newBatting[newStriker].sixes || 0)
         };
       }
-      if (batterMode === 2 && batRuns % 2 === 1) [newStriker, newNonStriker] = [newNonStriker, newStriker];
     } 
     else if (lastBall.isBye || lastBall.isLegBye) {
       newTotalRuns -= lastBall.runs;
       newTotalBalls -= 1;
       if (lastBall.isBye) newExtras.byes -= lastBall.runs;
       else newExtras.legByes -= lastBall.runs;
-      if (newBatting[striker]) newBatting[striker].balls -= 1;
-      if (newBowling[currentBowlerIdx]) {
-        if (newBowling[currentBowlerIdx].ballsInOver === 0 && newBowling[currentBowlerIdx].overs > 0) {
-          newBowling[currentBowlerIdx].overs -= 1;
-          newBowling[currentBowlerIdx].ballsInOver = 5;
-          if (batterMode === 2) [newStriker, newNonStriker] = [newNonStriker, newStriker];
+      
+      if (newBatting[newStriker]) {
+        newBatting[newStriker] = { ...newBatting[newStriker], balls: (newBatting[newStriker].balls || 0) - 1 };
+      }
+
+      if (newBowling[targetBowlerIdx]) {
+        if (newBowling[targetBowlerIdx].ballsInOver === 0 && newBowling[targetBowlerIdx].overs > 0) {
+          newBowling[targetBowlerIdx].overs -= 1;
+          newBowling[targetBowlerIdx].ballsInOver = 5;
         } else {
-          newBowling[currentBowlerIdx].ballsInOver -= 1;
+          newBowling[targetBowlerIdx].ballsInOver -= 1;
         }
       }
-      if (batterMode === 2 && lastBall.runs % 2 === 1) [newStriker, newNonStriker] = [newNonStriker, newStriker];
     }
-    // 3. Handle Normal Runs Restoration
     else {
       newTotalRuns -= lastBall.runs;
       newTotalBalls -= 1;
-      if (newBatting[striker]) {
-        newBatting[striker] = { 
-          ...newBatting[striker], 
-          runs: newBatting[striker].runs - lastBall.runs,
-          balls: newBatting[striker].balls - 1,
-          fours: lastBall.runs === 4 ? newBatting[striker].fours - 1 : newBatting[striker].fours,
-          sixes: lastBall.runs === 6 ? newBatting[striker].sixes - 1 : newBatting[striker].sixes
+
+      if (newBatting[newStriker]) {
+        newBatting[newStriker] = { 
+          ...newBatting[newStriker], 
+          runs: (newBatting[newStriker].runs || 0) - lastBall.runs,
+          balls: (newBatting[newStriker].balls || 0) - 1,
+          fours: lastBall.runs === 4 ? (newBatting[newStriker].fours || 0) - 1 : (newBatting[newStriker].fours || 0),
+          sixes: lastBall.runs === 6 ? (newBatting[newStriker].sixes || 0) - 1 : (newBatting[newStriker].sixes || 0)
         };
       }
-      if (newBowling[currentBowlerIdx]) {
-        newBowling[currentBowlerIdx].runs -= lastBall.runs;
-        if (newBowling[currentBowlerIdx].ballsInOver === 0 && newBowling[currentBowlerIdx].overs > 0) {
-          newBowling[currentBowlerIdx].overs -= 1;
-          newBowling[currentBowlerIdx].ballsInOver = 5;
-          if (batterMode === 2) [newStriker, newNonStriker] = [newNonStriker, newStriker];
+      if (newBowling[targetBowlerIdx]) {
+        newBowling[targetBowlerIdx].runs -= lastBall.runs;
+        if (newBowling[targetBowlerIdx].ballsInOver === 0 && newBowling[targetBowlerIdx].overs > 0) {
+          newBowling[targetBowlerIdx].overs -= 1;
+          newBowling[targetBowlerIdx].ballsInOver = 5;
         } else {
-          newBowling[currentBowlerIdx].ballsInOver -= 1;
+          newBowling[targetBowlerIdx].ballsInOver -= 1;
         }
       }
-      if (batterMode === 2 && lastBall.runs % 2 === 1) [newStriker, newNonStriker] = [newNonStriker, newStriker];
     }
 
     setBalls(newBalls);
@@ -859,9 +884,21 @@ export default function LiveScoring() {
   async function finishMatch() {
     try {
       const result = resultText || autoResult() || 'Match completed';
-      const winner = innings1Score !== null
-        ? (totalRuns > innings1Score ? 'teamB' : totalRuns < innings1Score ? 'teamA' : null)
-        : null;
+      
+      const teamA_id = match.teamA?.id;
+      const teamB_id = match.teamB?.id;
+      const battingFirstId = match.battingFirst === 'teamB' ? teamB_id : teamA_id;
+      const battingSecondId = match.battingFirst === 'teamB' ? teamA_id : teamB_id;
+
+      let winner = null;
+      if (innings1Score !== null) {
+        if (totalRuns > innings1Score) {
+           winner = battingSecondId === teamA_id ? 'teamA' : 'teamB';
+        } else if (totalRuns < innings1Score) {
+           winner = battingFirstId === teamA_id ? 'teamA' : 'teamB';
+        }
+      }
+      
       await updateDoc(doc(db, 'matches', id), {
         status: 'finished',
         result,
@@ -878,16 +915,41 @@ export default function LiveScoring() {
   function shareWhatsApp() {
     const tA = match?.teamA;
     const tB = match?.teamB;
-    const text = `🏏 *SCORELI LIVE*\n\n${tA?.name}: ${tA?.score ?? 0}/${tA?.wickets ?? 0} (${tA?.overs ?? 0} ov)\n${tB?.name}: ${tB?.score ?? 0}/${tB?.wickets ?? 0} (${tB?.overs ?? 0} ov)\n\n${match?.result ? '🏆 ' + match.result : currentInnings === 2 ? `Target: ${getTarget()} | Need: ${getRequiredRuns()} runs` : 'Innings 1 in progress'}\n\n📲 Powered by Scoreli`;
+    const battingFirstId = match.battingFirst === 'teamB' ? tB?.id : tA?.id;
+    const firstTeam = tA?.id === battingFirstId ? tA : tB;
+    const secondTeam = tA?.id === battingFirstId ? tB : tA;
+
+    const text = `🏏 *SCORELI LIVE*\n\n${firstTeam?.name}: ${firstTeam?.score ?? 0}/${firstTeam?.wickets ?? 0} (${firstTeam?.overs ?? 0} ov)\n${secondTeam?.name}: ${secondTeam?.score ?? 0}/${secondTeam?.wickets ?? 0} (${secondTeam?.overs ?? 0} ov)\n\n${match?.result ? '🏆 ' + match.result : currentInnings === 2 ? `Target: ${getTarget()} | Need: ${getRequiredRuns()} runs` : 'Innings 1 in progress'}\n\n📲 Powered by Scoreli`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
+  }
+
+  function swapStartingTeams() {
+    if (totalBalls > 0 || currentInnings > 1) return;
+    const newBattingFirst = match.battingFirst === 'teamB' ? 'teamA' : 'teamB';
+    
+    // Swap players locally first
+    const temp = teamPlayers;
+    setTeamPlayers(bowlingTeamPlayers);
+    setBowlingTeamPlayers(temp);
+    
+    // Update match doc
+    updateDoc(doc(db, 'matches', id), { battingFirst: newBattingFirst });
+    toast.success('Teams swapped!');
   }
 
   if (loading) return <Loader />;
   if (!match) return null;
 
-  const battingTeamName = currentInnings === 1 ? match.teamA?.name : match.teamB?.name;
-  const bowlingTeamName = currentInnings === 1 ? match.teamB?.name : match.teamA?.name;
+  const isTeamBFirst = match.battingFirst === 'teamB';
+  const battingTeamName = currentInnings === 1 
+    ? (isTeamBFirst ? match.teamB?.name : match.teamA?.name) 
+    : (isTeamBFirst ? match.teamA?.name : match.teamB?.name);
+    
+  const bowlingTeamName = currentInnings === 1 
+    ? (isTeamBFirst ? match.teamA?.name : match.teamB?.name) 
+    : (isTeamBFirst ? match.teamB?.name : match.teamA?.name);
+
   const target = getTarget();
   const requiredRuns = getRequiredRuns();
 
@@ -907,7 +969,14 @@ export default function LiveScoring() {
             </div>
           </div>
         </div>
-        <button className="btn btn-outline btn-sm" onClick={shareWhatsApp} title="Share on WhatsApp" style={{ fontSize: 16, padding: '4px 10px' }}>📤</button>
+        <div className="flex gap-xs">
+          {totalBalls === 0 && currentInnings === 1 && (
+            <button className="btn btn-outline btn-sm" onClick={swapStartingTeams} title="Swap Batting Team" style={{ fontSize: '10px' }}>
+              🔄 Swap Batting
+            </button>
+          )}
+          <button className="btn btn-outline btn-sm" onClick={shareWhatsApp} title="Share on WhatsApp" style={{ fontSize: 16, padding: '4px 10px' }}>📤</button>
+        </div>
       </div>
 
       <div className="scoring-panel">

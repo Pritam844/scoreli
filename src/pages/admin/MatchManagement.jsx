@@ -16,6 +16,7 @@ export default function MatchManagement() {
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingMatch, setEditingMatch] = useState(null);
   const now = new Date();
   const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
@@ -25,7 +26,8 @@ export default function MatchManagement() {
     status: 'upcoming',
     overs: 20,
     batterMode: 2, // 1 or 2
-    matchDate: localNow
+    matchDate: localNow,
+    battingFirst: 'teamA'
   });
 
   useEffect(() => { 
@@ -53,7 +55,8 @@ export default function MatchManagement() {
           status: 'upcoming',
           overs: 20,
           batterMode: 2,
-          matchDate: localNow
+          matchDate: localNow,
+          battingFirst: 'teamA'
         });
         setShowModal(true);
         window.history.replaceState(null, '', '/admin/matches');
@@ -66,18 +69,37 @@ export default function MatchManagement() {
   }
 
   function openCreate() {
+    setEditingMatch(null);
     setForm({
       teamA_id: teams[0]?.id || '',
       teamB_id: teams[1]?.id || '',
       status: 'upcoming',
       overs: 20,
       batterMode: 2,
-      matchDate: localNow
+      matchDate: localNow,
+      battingFirst: 'teamA'
     });
     setShowModal(true);
   }
 
-  async function handleCreate(e) {
+  function openEdit(match) {
+    setEditingMatch(match);
+    const mDate = new Date(match.matchDate?.seconds ? match.matchDate.seconds * 1000 : match.matchDate);
+    const localFormDate = new Date(mDate.getTime() - mDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    
+    setForm({
+      teamA_id: match.teamA?.id || '',
+      teamB_id: match.teamB?.id || '',
+      status: match.status || 'upcoming',
+      overs: match.overs || 20,
+      batterMode: match.batterMode || 2,
+      matchDate: localFormDate,
+      battingFirst: match.battingFirst || 'teamA'
+    });
+    setShowModal(true);
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault();
     if (!form.teamA_id || !form.teamB_id) { toast.error('Select both teams'); return; }
     if (form.teamA_id === form.teamB_id) { toast.error('Select different teams'); return; }
@@ -85,25 +107,35 @@ export default function MatchManagement() {
     const teamA = teams.find(t => t.id === form.teamA_id);
     const teamB = teams.find(t => t.id === form.teamB_id);
 
+    const matchData = {
+      teamA: { ...teamA, score: editingMatch ? (editingMatch.teamA?.score ?? 0) : 0, wickets: editingMatch ? (editingMatch.teamA?.wickets ?? 0) : 0, overs: editingMatch ? (editingMatch.teamA?.overs ?? 0) : 0 },
+      teamB: { ...teamB, score: editingMatch ? (editingMatch.teamB?.score ?? 0) : 0, wickets: editingMatch ? (editingMatch.teamB?.wickets ?? 0) : 0, overs: editingMatch ? (editingMatch.teamB?.overs ?? 0) : 0 },
+      status: form.status,
+      overs: parseInt(form.overs) || 20,
+      batterMode: parseInt(form.batterMode) || 2,
+      matchDate: new Date(form.matchDate).getTime(),
+      battingFirst: form.battingFirst,
+    };
+
     try {
-      await addDoc(collection(db, 'matches'), {
-        teamA: { id: teamA.id, name: teamA.name, logo_url: teamA.logo_url || null, score: 0, wickets: 0, overs: 0 },
-        teamB: { id: teamB.id, name: teamB.name, logo_url: teamB.logo_url || null, score: 0, wickets: 0, overs: 0 },
-        status: form.status,
-        published: false,
-        winner: null,
-        result: null,
-        overs: parseInt(form.overs) || 20,
-        batterMode: parseInt(form.batterMode) || 2,
-        admin_id: user.uid,
-        matchDate: new Date(form.matchDate).getTime(),
-        createdAt: serverTimestamp()
-      });
-      toast.success('Match created!');
+      if (editingMatch) {
+        await updateDoc(doc(db, 'matches', editingMatch.id), matchData);
+        toast.success('Match updated!');
+      } else {
+        await addDoc(collection(db, 'matches'), {
+          ...matchData,
+          published: false,
+          winner: null,
+          result: null,
+          admin_id: user.uid,
+          createdAt: serverTimestamp()
+        });
+        toast.success('Match created!');
+      }
       setShowModal(false);
       fetchData();
     } catch (err) {
-      toast.error('Failed to create match');
+      toast.error(editingMatch ? 'Failed to update' : 'Failed to create');
       console.error(err);
     }
   }
@@ -229,6 +261,11 @@ export default function MatchManagement() {
                   {m.teamA?.score ?? 0}/{m.teamA?.wickets ?? 0} ({m.teamA?.overs ?? 0}) •{' '}
                   {m.teamB?.score ?? 0}/{m.teamB?.wickets ?? 0} ({m.teamB?.overs ?? 0})
                 </div>
+                {m.battingFirst && (
+                  <div className="text-tiny mb-sm opacity-80" style={{ fontStyle: 'italic' }}>
+                    🏏 {m[m.battingFirst]?.name} batting first
+                  </div>
+                )}
                 {m.result && (
                   <div className="text-small mb-sm" style={{ color: 'var(--accent-green)', fontWeight: 600 }}>
                     🏆 {m.result}
@@ -265,6 +302,9 @@ export default function MatchManagement() {
                   >
                     {m.batterMode === 1 ? '🧍🧍' : '🧍'}
                   </button>
+                  <button className="btn btn-sm" title="Edit Match" onClick={() => openEdit(m)} style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}>
+                    ✏️
+                  </button>
                   <button className="btn btn-sm" style={{ color: 'var(--accent-red)' }} onClick={() => handleDelete(m)}>
                     🗑
                   </button>
@@ -276,8 +316,8 @@ export default function MatchManagement() {
       )}
 
       {showModal && (
-        <Modal title="Create Match" onClose={() => setShowModal(false)}>
-          <form onSubmit={handleCreate}>
+        <Modal title={editingMatch ? "Update Match" : "Create Match"} onClose={() => setShowModal(false)}>
+          <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label className="form-label">Team A</label>
               <select
@@ -360,6 +400,19 @@ export default function MatchManagement() {
             </div>
 
             <div className="form-group">
+              <label className="form-label">Who bats first?</label>
+              <select
+                className="form-select"
+                value={form.battingFirst}
+                onChange={e => setForm(f => ({ ...f, battingFirst: e.target.value }))}
+                required
+              >
+                <option value="teamA">{teams.find(t => t.id === form.teamA_id)?.name || 'Team A'}</option>
+                <option value="teamB">{teams.find(t => t.id === form.teamB_id)?.name || 'Team B'}</option>
+              </select>
+            </div>
+
+            <div className="form-group">
               <label className="form-label">Match Date & Time</label>
               <input
                 type="datetime-local"
@@ -384,7 +437,7 @@ export default function MatchManagement() {
             </div>
 
             <button type="submit" className="btn btn-primary btn-block" id="save-match-btn">
-              Create Match
+              {editingMatch ? 'Update Match' : 'Create Match'}
             </button>
           </form>
         </Modal>

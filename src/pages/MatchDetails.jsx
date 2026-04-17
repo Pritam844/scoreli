@@ -228,6 +228,14 @@ export default function MatchDetails() {
                     </span>
                   </div>
                 )}
+                {match.battingFirst && (
+                  <div className="flex justify-between">
+                    <span className="text-small">Toss</span>
+                    <span className="text-small" style={{ color: 'var(--text-primary)' }}>
+                      {match[match.battingFirst]?.name} batting first
+                    </span>
+                  </div>
+                )}
                 {result && (
                   <div className="flex justify-between">
                     <span className="text-small">Result</span>
